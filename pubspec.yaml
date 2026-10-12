@@ -2,6 +2,7 @@ name: google_sign_in_merged
 description: "Sign in with google for both web and mobile platforms with easier usage"
 version: 0.0.1
 
+repository: git@github.com:h3ng3ll/google_sign_in_merged.git
 environment:
   sdk: ^3.13.5
   flutter: ">=3.35.0"
