@@ -30,9 +30,6 @@ linter:
     null_check_on_nullable_type_parameter: false
 
 analyzer:
-  plugins:
-    - custom_lint
-
   exclude:
     - build/**
     - android/**

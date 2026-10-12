@@ -1,11 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
 import '../../../models/env_google/env_google.dart';
-
-
 
 class GoogleSignInServiceMobile {
   GoogleSignInServiceMobile._();
@@ -14,26 +12,42 @@ class GoogleSignInServiceMobile {
 
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
-  Future<void> init(EnvGoogle env, ValueNotifier<String?> authToken) async {
-    await _googleSignIn.initialize(
-      serverClientId: env.webPushCertificate,
+  StreamSubscription<GoogleSignInAuthenticationEvent>? _subscription;
+
+  void Function(String? idToken)? _onIdToken;
+
+  /// `GoogleSignIn.initialize` may run only once per app; concurrent and
+  /// repeated `init` calls share this future.
+  Future<void>? _initialization;
+
+  bool _initialized = false;
+
+  Future<void> init(
+    EnvGoogle env,
+    void Function(String? idToken) onIdToken,
+  ) async {
+    _onIdToken = onIdToken;
+    await (_initialization ??= _googleSignIn.initialize(
+      clientId: env.clientId,
+      serverClientId: env.serverClientId,
+    ));
+    _initialized = true;
+    _subscription ??= _googleSignIn.authenticationEvents.listen(
+      _onAuthenticationEvent,
+      onError: _onAuthenticationEventError,
     );
-    _googleSignIn.authenticationEvents.listen((event) {
-      final user = switch (event) {
-        GoogleSignInAuthenticationEventSignIn() => event.user,
-        _ => null,
-      };
+  }
 
-      if (user?.authentication.idToken != null) {
-        final token = user!.authentication.idToken!;
-        if (kDebugMode) {
-          print('MOBILE TOKEN: $token');
+  void _onAuthenticationEvent(GoogleSignInAuthenticationEvent event) {
+    switch (event) {
+      case GoogleSignInAuthenticationEventSignIn():
+        final token = event.user.authentication.idToken;
+        if (token != null) {
+          _onIdToken?.call(token);
         }
-
-        /// 🔥 тот же notifier
-        authToken.value = token;
-      }
-    }, onError: _onAuthenticationEventError);
+      case GoogleSignInAuthenticationEventSignOut():
+        _onIdToken?.call(null);
+    }
   }
 
   /// `authenticate()` rethrows the same error to its caller, which already
@@ -41,17 +55,36 @@ class GoogleSignInServiceMobile {
   /// consumed here, or it escapes as an uncaught error and is recorded by
   /// Crashlytics as a fatal crash.
   void _onAuthenticationEventError(Object error) {
-    if (kDebugMode) {
-      print('Google sign-in event error: $error');
-    }
+    debugPrint('Google sign-in event error: $error');
+  }
+
+  /// Opens the native Google account picker. The ID token is published to
+  /// `idTokenChanges` through the authentication event stream; errors (including
+  /// a user cancel, `GoogleSignInExceptionCode.canceled`) are rethrown.
+  Future<void> signIn() async {
+    _ensureInitialized();
+    await _googleSignIn.authenticate();
   }
 
   Future<void> signOut() async {
-    await _googleSignIn.disconnect();
+    _ensureInitialized();
+    await _googleSignIn.signOut();
+    _onIdToken?.call(null);
   }
 
   Widget renderButton() {
-    return Container();
+    return const SizedBox.shrink();
+  }
+
+  Future<void> dispose() async {
+    await _subscription?.cancel();
+    _subscription = null;
+  }
+
+  void _ensureInitialized() {
+    if (!_initialized) {
+      throw StateError('GoogleSignInMerged.init() must complete first.');
+    }
   }
 }
 

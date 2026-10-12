@@ -1,11 +1,10 @@
 name: google_sign_in_merged
 description: "Sign in with google for both web and mobile platforms with easier usage"
 version: 0.0.1
-homepage:
 
 environment:
   sdk: ^3.13.5
-  flutter: ">=1.17.0"
+  flutter: ">=3.35.0"
 
 dependencies:
   flutter:
